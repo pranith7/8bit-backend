@@ -44,20 +44,21 @@ const cheerio = __importStar(require("cheerio"));
 const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
 const dotenv_1 = __importDefault(require("dotenv"));
 const data_1 = require("./data");
+const ioredis_1 = __importDefault(require("ioredis"));
 // Suppress Yahoo Finance survey notice
 yahoo_finance2_1.default.suppressNotices(['yahooSurvey']);
 // Load environment variables
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 const port = process.env.PORT || 3001;
-// const redis = process.env.REDIS_URL
-//   ? new Redis(process.env.REDIS_URL)
-//   : new Redis({
-//       host: process.env.REDIS_HOST || 'localhost',
-//       port: parseInt(process.env.REDIS_PORT || '6379'),
-//       password: process.env.REDIS_PASSWORD,
-//       tls: process.env.REDIS_HOST?.includes('upstash') ? {} : undefined,
-//     });
+const redis = process.env.REDIS_URL
+    ? new ioredis_1.default(process.env.REDIS_URL)
+    : new ioredis_1.default({
+        host: process.env.REDIS_HOST || 'localhost',
+        port: parseInt(process.env.REDIS_PORT || '6379'),
+        password: process.env.REDIS_PASSWORD,
+        tls: process.env.REDIS_HOST?.includes('upstash') ? {} : undefined,
+    });
 // Middleware
 app.use((0, cors_1.default)());
 app.use(express_1.default.json());
@@ -92,9 +93,10 @@ function convertToGoogleFinanceTicker(yahooSymbol) {
 }
 // Fetch CMP from Yahoo Finance
 async function fetchCMP(symbol, staticCMP) {
-    // const cacheKey = `cmp:${symbol}`;
-    // const cachedCMP = await redis.get(cacheKey);
-    // if (cachedCMP) return parseFloat(cachedCMP);
+    const cacheKey = `cmp:${symbol}`;
+    const cachedCMP = await redis.get(cacheKey);
+    if (cachedCMP)
+        return parseFloat(cachedCMP);
     // if (!isMarketOpen()) {
     //   console.warn(`Market is closed. Using static CMP (${staticCMP}) for ${symbol}`);
     //   return staticCMP;
@@ -106,7 +108,7 @@ async function fetchCMP(symbol, staticCMP) {
             return staticCMP;
         }
         const cmp = quote.regularMarketPrice;
-        // await redis.set(cacheKey, cmp, 'EX', CACHE_TTL);
+        await redis.set(cacheKey, cmp, 'EX', CACHE_TTL);
         console.log('Fetching CMP from Yahoo Finance:', symbol, 'Result:', cmp);
         return cmp;
     }
@@ -119,8 +121,9 @@ async function fetchCMP(symbol, staticCMP) {
 // Fetch P/E Ratio and EPS from Google Finance
 async function fetchGoogleFinanceData(ticker) {
     const cacheKey = `googleFinance:${ticker}`;
-    // const cachedData = await redis.get(cacheKey);
-    // if (cachedData) return JSON.parse(cachedData);
+    const cachedData = await redis.get(cacheKey);
+    if (cachedData)
+        return JSON.parse(cachedData);
     try {
         const url = `https://www.google.com/finance/quote/${ticker}`;
         const response = await axios_1.default.get(url, {
@@ -146,7 +149,7 @@ async function fetchGoogleFinanceData(ticker) {
             }
         });
         const data = { peRatio, latestEarnings };
-        // await redis.set(cacheKey, JSON.stringify(data), 'EX', CACHE_TTL);
+        await redis.set(cacheKey, JSON.stringify(data), 'EX', CACHE_TTL);
         console.log(`Fetched Google Finance data for ${ticker}:`, data);
         return data;
     }
