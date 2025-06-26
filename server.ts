@@ -3,10 +3,11 @@ import cors from 'cors';
 import yahooFinance from 'yahoo-finance2';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
-import Redis from 'ioredis';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import { portfolio, PortfolioResponse} from './data';
+import Redis from 'ioredis';
+
 
 // Suppress Yahoo Finance survey notice
 yahooFinance.suppressNotices(['yahooSurvey']);
@@ -17,11 +18,15 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || 3001;
 
-// Redis client setup
-const redis = new Redis({
-  host: process.env.REDIS_HOST || 'localhost',
-  port: parseInt(process.env.REDIS_PORT || '6379'),
-});
+
+const redis = process.env.REDIS_URL
+  ? new Redis(process.env.REDIS_URL)
+  : new Redis({
+      host: process.env.REDIS_HOST || 'localhost',
+      port: parseInt(process.env.REDIS_PORT || '6379'),
+      password: process.env.REDIS_PASSWORD,
+      tls: process.env.REDIS_HOST?.includes('upstash') ? {} : undefined,
+    });
 
 // Middleware
 app.use(cors());
