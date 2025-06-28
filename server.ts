@@ -19,17 +19,21 @@ const app = express();
 const port = process.env.PORT || 3001;
 
 
-const redis = process.env.REDIS_URL
-  ? new Redis(process.env.REDIS_URL)
-  : new Redis({
-      host: process.env.REDIS_HOST || 'localhost',
-      port: parseInt(process.env.REDIS_PORT || '6379'),
-      password: process.env.REDIS_PASSWORD,
-      tls: process.env.REDIS_HOST?.includes('upstash') ? {} : undefined,
-    });
+// const redis = process.env.REDIS_URL
+//   ? new Redis(process.env.REDIS_URL)
+//   : new Redis({
+//       host: process.env.REDIS_HOST || 'localhost',
+//       port: parseInt(process.env.REDIS_PORT || '6379'),
+//       password: process.env.REDIS_PASSWORD,
+//       tls: process.env.REDIS_HOST?.includes('upstash') ? {} : undefined,
+//     });
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: ['https://8bit-frontend-seven.vercel.app', 'http://localhost:5173'],
+  credentials: true  // If you need to include cookies or authorization headers
+}));
+
 app.use(express.json());
 
 // Rate limiter to prevent API abuse
@@ -70,8 +74,8 @@ function convertToGoogleFinanceTicker(yahooSymbol: string): string {
 // Fetch CMP from Yahoo Finance
 async function fetchCMP(symbol: string, staticCMP: number | null): Promise<number | null> {
   const cacheKey = `cmp:${symbol}`;
-  const cachedCMP = await redis.get(cacheKey);
-  if (cachedCMP) return parseFloat(cachedCMP);
+  // const cachedCMP = await redis.get(cacheKey);
+  // if (cachedCMP) return parseFloat(cachedCMP);
 
   // if (!isMarketOpen()) {
   //   console.warn(`Market is closed. Using static CMP (${staticCMP}) for ${symbol}`);
@@ -85,7 +89,7 @@ async function fetchCMP(symbol: string, staticCMP: number | null): Promise<numbe
       return staticCMP;
     }
     const cmp = quote.regularMarketPrice;
-    await redis.set(cacheKey, cmp, 'EX', CACHE_TTL);
+    // await redis.set(cacheKey, cmp, 'EX', CACHE_TTL);
     console.log('Fetching CMP from Yahoo Finance:', symbol, 'Result:', cmp);
     return cmp;
   } catch (error: any) {
@@ -98,8 +102,8 @@ async function fetchCMP(symbol: string, staticCMP: number | null): Promise<numbe
 // Fetch P/E Ratio and EPS from Google Finance
 async function fetchGoogleFinanceData(ticker: string): Promise<{ peRatio: string | null; latestEarnings: string | null }> {
   const cacheKey = `googleFinance:${ticker}`;
-  const cachedData = await redis.get(cacheKey);
-  if (cachedData) return JSON.parse(cachedData);
+  // const cachedData = await redis.get(cacheKey);
+  // if (cachedData) return JSON.parse(cachedData);
 
   try {
     const url = `https://www.google.com/finance/quote/${ticker}`;
@@ -131,7 +135,7 @@ async function fetchGoogleFinanceData(ticker: string): Promise<{ peRatio: string
     });
 
     const data = { peRatio, latestEarnings };
-    await redis.set(cacheKey, JSON.stringify(data), 'EX', CACHE_TTL);
+    // await redis.set(cacheKey, JSON.stringify(data), 'EX', CACHE_TTL);
     console.log(`Fetched Google Finance data for ${ticker}:`, data);
     return data;
   } catch (error: any) {
